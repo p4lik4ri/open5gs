@@ -32,6 +32,7 @@ extern "C" {
 #define OGS_SBI_INTERFACE_NAME_N32F "n32f"
 
 #define OGS_SBI_SERVICE_NAME_N32C_HANDSHAKE "n32c-handshake"
+#define OGS_SBI_SERVICE_NAME_N32F_FORWARD "n32f-forward"
 
 #define OGS_SBI_SERVICE_NAME_NAMF_CALLBACK "namf-callback"
 #define OGS_SBI_SERVICE_NAME_NSMF_CALLBACK "nsmf-callback"
@@ -46,6 +47,7 @@ extern "C" {
 #define OGS_SBI_SERVICE_NAME_ID_N32C_HANDSHAKE 1000
 #define OGS_SBI_SERVICE_NAME_ID_NAMF_CALLBACK 1001
 #define OGS_SBI_SERVICE_NAME_ID_NSMF_CALLBACK 1002
+#define OGS_SBI_SERVICE_NAME_ID_N32F_FORWARD 1003
 
 int ogs_sbi_service_name_id_from_string(const char *service_name);
 

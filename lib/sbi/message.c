@@ -3094,6 +3094,10 @@ static int parse_json(ogs_sbi_message_t *message,
             END
             break;
 
+        case OGS_SBI_SERVICE_NAME_ID_N32F_FORWARD:
+            /* The minimal N32-f wrapper is parsed by the SEPP handler */
+            break;
+
         case OGS_SBI_SERVICE_NAME_ID_NAMF_CALLBACK:
             SWITCH(message->h.resource.component[1])
             CASE(OGS_SBI_RESOURCE_NAME_SM_CONTEXT_STATUS)

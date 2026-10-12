@@ -506,6 +506,52 @@ int ogs_sbi_context_parse_config(
 
                                     } while (ogs_yaml_iter_type(&scp_array) ==
                                             YAML_SEQUENCE_NODE);
+                                } else if (local &&
+                                        !strcmp(local, "amf") &&
+                                        !strcmp(client_key, "sepp")) {
+                                    ogs_yaml_iter_t sepp_array, sepp_iter;
+                                    ogs_yaml_iter_recurse(
+                                            &client_iter, &sepp_array);
+                                    do {
+                                        ogs_sbi_client_t *client = NULL;
+
+                                        if (ogs_yaml_iter_type(&sepp_array) ==
+                                                YAML_MAPPING_NODE) {
+                                            memcpy(&sepp_iter, &sepp_array,
+                                                    sizeof(ogs_yaml_iter_t));
+                                        } else if (ogs_yaml_iter_type(
+                                                    &sepp_array) ==
+                                            YAML_SEQUENCE_NODE) {
+                                            if (!ogs_yaml_iter_next(&sepp_array))
+                                                break;
+                                            ogs_yaml_iter_recurse(
+                                                    &sepp_array, &sepp_iter);
+                                        } else if (ogs_yaml_iter_type(
+                                                    &sepp_array) ==
+                                                YAML_SCALAR_NODE) {
+                                            break;
+                                        } else
+                                            ogs_assert_if_reached();
+
+                                        if (self.sepp_n32f_client) {
+                                            ogs_error("Only one SEPP client "
+                                                    "can be set");
+                                            return OGS_ERROR;
+                                        }
+
+                                        client =
+                                            ogs_sbi_context_parse_client_config(
+                                                &sepp_iter);
+                                        if (!client) {
+                                            ogs_error("ogs_sbi_context_parse_"
+                                                    "client_config() failed");
+                                            return OGS_ERROR;
+                                        }
+
+                                        self.sepp_n32f_client = client;
+
+                                    } while (ogs_yaml_iter_type(&sepp_array) ==
+                                            YAML_SEQUENCE_NODE);
                                 }
                                 /* Parse delegated section */
                                 else if (!strcmp(client_key, "delegated")) {

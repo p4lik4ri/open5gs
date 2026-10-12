@@ -18,6 +18,7 @@
  */
 
 #include "sbi-path.h"
+#include "n32f-handler.h"
 
 void sepp_state_initial(ogs_fsm_t *s, sepp_event_t *e)
 {
@@ -117,6 +118,82 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
                 SWITCH(message.h.method)
                 CASE(OGS_SBI_HTTP_METHOD_POST)
                     ogs_nnrf_nfm_handle_nf_status_notify(stream, &message);
+                    break;
+
+                DEFAULT
+                    ogs_error("Invalid HTTP method [%s]", message.h.method);
+                    ogs_assert(true ==
+                        ogs_sbi_server_send_error(stream,
+                            OGS_SBI_HTTP_STATUS_FORBIDDEN, &message,
+                            "Invalid HTTP method", message.h.method, NULL));
+                END
+                break;
+
+            DEFAULT
+                ogs_error("Invalid resource name [%s]",
+                        message.h.resource.component[0]);
+                ogs_assert(true ==
+                    ogs_sbi_server_send_error(stream,
+                        OGS_SBI_HTTP_STATUS_BAD_REQUEST, &message,
+                        "Invalid resource name",
+                        message.h.resource.component[0], NULL));
+            END
+            break;
+
+        case OpenAPI_service_name_nnrf_disc:
+            /*
+             * Minimal N32-f subset : NF-discovery requested by the local
+             * NF (AMF) for a peer PLMN is forwarded to the peer SEPP.
+             */
+            if (server->interface) {
+                ogs_error("[DROP] Peer SEPP is using the wrong interface[%s]",
+                        server->interface);
+                break;
+            }
+
+            SWITCH(message.h.resource.component[0])
+            CASE(OGS_SBI_RESOURCE_NAME_NF_INSTANCES)
+                SWITCH(message.h.method)
+                CASE(OGS_SBI_HTTP_METHOD_GET)
+                    sepp_n32f_handle_nf_discover(
+                            stream_id, stream, &message, request);
+                    break;
+
+                DEFAULT
+                    ogs_error("Invalid HTTP method [%s]", message.h.method);
+                    ogs_assert(true ==
+                        ogs_sbi_server_send_error(stream,
+                            OGS_SBI_HTTP_STATUS_FORBIDDEN, &message,
+                            "Invalid HTTP method", message.h.method, NULL));
+                END
+                break;
+
+            DEFAULT
+                ogs_error("Invalid resource name [%s]",
+                        message.h.resource.component[0]);
+                ogs_assert(true ==
+                    ogs_sbi_server_send_error(stream,
+                        OGS_SBI_HTTP_STATUS_BAD_REQUEST, &message,
+                        "Invalid resource name",
+                        message.h.resource.component[0], NULL));
+            END
+            break;
+
+        case OGS_SBI_SERVICE_NAME_ID_N32F_FORWARD:
+            if (!server->interface &&
+                (ogs_sbi_server_first_by_interface(
+                    OGS_SBI_INTERFACE_NAME_SEPP) ||
+                 ogs_sbi_server_first_by_interface(
+                    OGS_SBI_INTERFACE_NAME_N32F))) {
+                ogs_error("[DROP] Peer SEPP is using the wrong interface[sbi]");
+                break;
+            }
+
+            SWITCH(message.h.resource.component[0])
+            CASE(OGS_SBI_RESOURCE_NAME_FORWARD)
+                SWITCH(message.h.method)
+                CASE(OGS_SBI_HTTP_METHOD_POST)
+                    sepp_n32f_handle_forward(stream_id, stream, request);
                     break;
 
                 DEFAULT

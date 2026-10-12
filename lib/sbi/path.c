@@ -611,6 +611,23 @@ int ogs_sbi_discover_only(ogs_sbi_xact_t *xact)
             return OGS_NOTFOUND;
         }
 
+        /*
+         * If the GUAMI belongs to another PLMN and a local SEPP is
+         * configured (sbi.client.sepp), send the discovery request to
+         * the SEPP instead of the local NRF. The SEPP forwards it over
+         * N32-f to the peer SEPP serving that PLMN.
+         * Without 'sbi.client.sepp', the local NRF is always used.
+         */
+        if (ogs_sbi_self()->sepp_n32f_client &&
+            discovery_option && discovery_option->guami_presence &&
+            ogs_sbi_plmn_id_in_vplmn(
+                &discovery_option->guami.plmn_id) == true) {
+            ogs_debug("Discover [%s] via SEPP [PLMN_ID:0x%x]",
+                    OpenAPI_service_name_ToString(service_name),
+                    ogs_plmn_id_hexdump(&discovery_option->guami.plmn_id));
+            client = ogs_sbi_self()->sepp_n32f_client;
+        }
+
         request = ogs_nnrf_disc_build_discover(
                     target_nf_type, requester_nf_type, discovery_option);
         if (!request) {

@@ -104,6 +104,13 @@ typedef struct ogs_sbi_context_s {
     ogs_sbi_nf_instance_t *scp_instance;    /* SCP Instance */
     ogs_sbi_nf_instance_t *sepp_instance;   /* SEPP Instance */
 
+    /*
+     * Local SEPP client used to forward NRF discovery of a peer PLMN
+     * over N32-f (minimal lab-only subset, see src/sepp/n32f-handler.c).
+     * Set by 'sbi.client.sepp' in amf.yaml; NULL means disabled.
+     */
+    ogs_sbi_client_t *sepp_n32f_client;
+
     const char *content_encoding;
 
     int num_of_service_name;
