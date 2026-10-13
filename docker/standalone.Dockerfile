@@ -1,0 +1,51 @@
+ARG dist=ubuntu
+ARG tag=latest
+FROM ${dist}:${tag}
+
+LABEL org.opencontainers.image.authors="Sukchan Lee <acetcom@gmail.com>"
+
+RUN apt-get update && \
+    apt-get upgrade -y && \
+    DEBIAN_FRONTEND=noninteractive \
+    apt-get install -y --no-install-recommends \
+        python3-pip \
+        python3-setuptools \
+        python3-wheel \
+        ninja-build \
+        build-essential \
+        flex \
+        bison \
+        git \
+        cmake \
+        meson \
+        libsctp-dev \
+        libgnutls28-dev \
+        libgcrypt-dev \
+        libssl-dev \
+        libmongoc-dev \
+        libbson-dev \
+        libyaml-dev \
+        libmicrohttpd-dev \
+        libcurl4-gnutls-dev \
+        libnghttp2-dev \
+        libtins-dev \
+        libtalloc-dev \
+        libc-ares-dev \
+        iproute2 \
+        ca-certificates \
+        netbase \
+        pkg-config && \
+    if apt-cache show libidn-dev > /dev/null 2>&1; then \
+        apt-get install -y --no-install-recommends libidn-dev; \
+    else \
+        apt-get install -y --no-install-recommends libidn11-dev; \
+    fi && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /open5gs
+COPY ./ /open5gs
+
+ADD https://github.com/ufoscout/docker-compose-wait/releases/download/2.9.0/wait /wait
+RUN chmod +x /wait
+
+RUN meson build && ninja -C build install
