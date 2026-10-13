@@ -128,9 +128,11 @@ cJSON *OpenAPI_search_result_convertToJSON(OpenAPI_search_result_t *search_resul
     }
 
     item = cJSON_CreateObject();
-    if (cJSON_AddNumberToObject(item, "validityPeriod", search_result->validity_period) == NULL) {
-        ogs_error("OpenAPI_search_result_convertToJSON() failed [validity_period]");
-        goto end;
+    if (search_result->validity_period) {
+        if (cJSON_AddNumberToObject(item, "validityPeriod", search_result->validity_period) == NULL) {
+            ogs_error("OpenAPI_search_result_convertToJSON() failed [validity_period]");
+            goto end;
+        }
     }
 
     if (!search_result->nf_instances) {
@@ -337,13 +339,11 @@ OpenAPI_search_result_t *OpenAPI_search_result_parseFromJSON(cJSON *search_resul
     cJSON *ind_com_add_info = NULL;
     OpenAPI_ind_com_add_info_t *ind_com_add_info_local_nonprim = NULL;
     validity_period = cJSON_GetObjectItemCaseSensitive(search_resultJSON, "validityPeriod");
-    if (!validity_period) {
-        ogs_error("OpenAPI_search_result_parseFromJSON() failed [validity_period]");
-        goto end;
-    }
-    if (!cJSON_IsNumber(validity_period)) {
-        ogs_error("OpenAPI_search_result_parseFromJSON() failed [validity_period]");
-        goto end;
+    if (validity_period) {
+        if (!cJSON_IsNumber(validity_period)) {
+            ogs_error("OpenAPI_search_result_parseFromJSON() failed [validity_period]");
+            goto end;
+        }
     }
 
     nf_instances = cJSON_GetObjectItemCaseSensitive(search_resultJSON, "nfInstances");
@@ -533,7 +533,7 @@ OpenAPI_search_result_t *OpenAPI_search_result_parseFromJSON(cJSON *search_resul
 
     search_result_local_var = OpenAPI_search_result_create (
         
-        validity_period->valuedouble,
+        validity_period ? validity_period->valuedouble : 0,
         nf_instancesList,
         complete_nf_instances ? complete_nf_instancesList : NULL,
         search_id && !cJSON_IsNull(search_id) ? ogs_strdup(search_id->valuestring) : NULL,
