@@ -1508,7 +1508,6 @@ void ogs_nnrf_disc_handle_nf_discover_search_result(
     ogs_sbi_nf_instance_t *nf_instance = NULL;
 
     ogs_assert(SearchResult);
-    ogs_assert(SearchResult->validity_period);
     ogs_assert(SearchResult->nf_instances);
 
     OpenAPI_list_for_each(SearchResult->nf_instances, node) {
@@ -1600,17 +1599,19 @@ void ogs_nnrf_disc_handle_nf_discover_search_result(
             }
 
             /* TIME : Update validity from NRF */
-            nf_instance->time.validity_duration = SearchResult->validity_period;
+            if (SearchResult->validity_period) {
+                nf_instance->time.validity_duration = SearchResult->validity_period;
 
-            ogs_assert(nf_instance->t_validity);
-            ogs_timer_start(nf_instance->t_validity,
-                ogs_time_from_sec(nf_instance->time.validity_duration));
+                ogs_assert(nf_instance->t_validity);
+                ogs_timer_start(nf_instance->t_validity,
+                    ogs_time_from_sec(nf_instance->time.validity_duration));
 
-            ogs_info("[%s] (NF-discover) NF Profile updated "
-                    "[type:%s validity:%ds]",
-                    NFProfile->nf_instance_id,
-                    OpenAPI_nf_type_ToString(NFProfile->nf_type),
-                    nf_instance->time.validity_duration);
+                ogs_info("[%s] (NF-discover) NF Profile updated "
+                        "[type:%s validity:%ds]",
+                        NFProfile->nf_instance_id,
+                        OpenAPI_nf_type_ToString(NFProfile->nf_type),
+                        nf_instance->time.validity_duration);
+            }
         }
     }
 }

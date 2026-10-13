@@ -1143,6 +1143,60 @@ int amf_context_parse_config(void)
     rv = amf_context_validation();
     if (rv != OGS_OK) return rv;
 
+    /*
+     * Populate serving PLMNs in ogs_local_conf() from configured served_guami
+     * and plmn_support if not already configured via local.serving.
+     * Keep ogs_sbi_self()->nf_instance->plmn_id in sync.
+     */
+    {
+        int i, j;
+        for (i = 0; i < self.num_of_served_guami; i++) {
+            ogs_plmn_id_t *plmn_id = &self.served_guami[i].plmn_id;
+            bool exists = false;
+            for (j = 0; j < ogs_local_conf()->num_of_serving_plmn_id; j++) {
+                if (memcmp(&ogs_local_conf()->serving_plmn_id[j],
+                            plmn_id, OGS_PLMN_ID_LEN) == 0) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists && ogs_local_conf()->num_of_serving_plmn_id <
+                    OGS_MAX_NUM_OF_PLMN) {
+                memcpy(&ogs_local_conf()->serving_plmn_id[
+                        ogs_local_conf()->num_of_serving_plmn_id],
+                        plmn_id, OGS_PLMN_ID_LEN);
+                ogs_local_conf()->num_of_serving_plmn_id++;
+            }
+        }
+
+        for (i = 0; i < self.num_of_plmn_support; i++) {
+            ogs_plmn_id_t *plmn_id = &self.plmn_support[i].plmn_id;
+            bool exists = false;
+            for (j = 0; j < ogs_local_conf()->num_of_serving_plmn_id; j++) {
+                if (memcmp(&ogs_local_conf()->serving_plmn_id[j],
+                            plmn_id, OGS_PLMN_ID_LEN) == 0) {
+                    exists = true;
+                    break;
+                }
+            }
+            if (!exists && ogs_local_conf()->num_of_serving_plmn_id <
+                    OGS_MAX_NUM_OF_PLMN) {
+                memcpy(&ogs_local_conf()->serving_plmn_id[
+                        ogs_local_conf()->num_of_serving_plmn_id],
+                        plmn_id, OGS_PLMN_ID_LEN);
+                ogs_local_conf()->num_of_serving_plmn_id++;
+            }
+        }
+
+        if (ogs_sbi_self()->nf_instance) {
+            memcpy(ogs_sbi_self()->nf_instance->plmn_id,
+                    ogs_local_conf()->serving_plmn_id,
+                    sizeof(ogs_local_conf()->serving_plmn_id));
+            ogs_sbi_self()->nf_instance->num_of_plmn_id =
+                    ogs_local_conf()->num_of_serving_plmn_id;
+        }
+    }
+
     return OGS_OK;
 }
 

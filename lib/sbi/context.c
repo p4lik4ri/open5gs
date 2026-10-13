@@ -3144,18 +3144,27 @@ bool ogs_sbi_supi_in_vplmn(char *supi)
     char imsi_bcd[OGS_MAX_IMSI_BCD_LEN+1];
     bool home_network = false;
     int i;
+    ogs_plmn_id_t *serving_plmn_id = NULL;
+    int num_of_serving_plmn_id = 0;
 
     ogs_assert(supi);
 
-    if (ogs_local_conf()->num_of_serving_plmn_id == 0) {
+    if (ogs_local_conf()->num_of_serving_plmn_id > 0) {
+        serving_plmn_id = ogs_local_conf()->serving_plmn_id;
+        num_of_serving_plmn_id = ogs_local_conf()->num_of_serving_plmn_id;
+    } else if (ogs_sbi_self()->nf_instance &&
+            ogs_sbi_self()->nf_instance->num_of_plmn_id > 0) {
+        serving_plmn_id = ogs_sbi_self()->nf_instance->plmn_id;
+        num_of_serving_plmn_id = ogs_sbi_self()->nf_instance->num_of_plmn_id;
+    } else {
         return false;
     }
 
     ogs_extract_digit_from_string(imsi_bcd, supi);
 
-    for (i = 0; i < ogs_local_conf()->num_of_serving_plmn_id; i++) {
+    for (i = 0; i < num_of_serving_plmn_id; i++) {
         char buf[OGS_PLMNIDSTRLEN];
-        ogs_plmn_id_to_string(&ogs_local_conf()->serving_plmn_id[i], buf);
+        ogs_plmn_id_to_string(&serving_plmn_id[i], buf);
 
         if (strncmp(imsi_bcd, buf, strlen(buf)) == 0) {
             home_network = true;
@@ -3173,10 +3182,19 @@ bool ogs_sbi_plmn_id_in_vplmn(ogs_plmn_id_t *plmn_id)
 {
     bool home_network = false;
     int i;
+    ogs_plmn_id_t *serving_plmn_id = NULL;
+    int num_of_serving_plmn_id = 0;
 
     ogs_assert(plmn_id);
 
-    if (ogs_local_conf()->num_of_serving_plmn_id == 0) {
+    if (ogs_local_conf()->num_of_serving_plmn_id > 0) {
+        serving_plmn_id = ogs_local_conf()->serving_plmn_id;
+        num_of_serving_plmn_id = ogs_local_conf()->num_of_serving_plmn_id;
+    } else if (ogs_sbi_self()->nf_instance &&
+            ogs_sbi_self()->nf_instance->num_of_plmn_id > 0) {
+        serving_plmn_id = ogs_sbi_self()->nf_instance->plmn_id;
+        num_of_serving_plmn_id = ogs_sbi_self()->nf_instance->num_of_plmn_id;
+    } else {
         return false;
     }
 
@@ -3190,8 +3208,8 @@ bool ogs_sbi_plmn_id_in_vplmn(ogs_plmn_id_t *plmn_id)
         return false;
     }
 
-    for (i = 0; i < ogs_local_conf()->num_of_serving_plmn_id; i++) {
-        if (memcmp(&ogs_local_conf()->serving_plmn_id[i],
+    for (i = 0; i < num_of_serving_plmn_id; i++) {
+        if (memcmp(&serving_plmn_id[i],
                     plmn_id, OGS_PLMN_ID_LEN) == 0) {
             home_network = true;
             break;
@@ -3208,10 +3226,19 @@ bool ogs_sbi_fqdn_in_vplmn(char *fqdn)
 {
     bool home_network = false;
     int i;
+    ogs_plmn_id_t *serving_plmn_id = NULL;
+    int num_of_serving_plmn_id = 0;
 
     ogs_assert(fqdn);
 
-    if (ogs_local_conf()->num_of_serving_plmn_id == 0) {
+    if (ogs_local_conf()->num_of_serving_plmn_id > 0) {
+        serving_plmn_id = ogs_local_conf()->serving_plmn_id;
+        num_of_serving_plmn_id = ogs_local_conf()->num_of_serving_plmn_id;
+    } else if (ogs_sbi_self()->nf_instance &&
+            ogs_sbi_self()->nf_instance->num_of_plmn_id > 0) {
+        serving_plmn_id = ogs_sbi_self()->nf_instance->plmn_id;
+        num_of_serving_plmn_id = ogs_sbi_self()->nf_instance->num_of_plmn_id;
+    } else {
         return false;
     }
 
@@ -3219,11 +3246,11 @@ bool ogs_sbi_fqdn_in_vplmn(char *fqdn)
         return false;
     }
 
-    for (i = 0; i < ogs_local_conf()->num_of_serving_plmn_id; i++) {
+    for (i = 0; i < num_of_serving_plmn_id; i++) {
         if (ogs_plmn_id_mcc_from_fqdn(fqdn) ==
-            ogs_plmn_id_mcc(&ogs_local_conf()->serving_plmn_id[i]) &&
+            ogs_plmn_id_mcc(&serving_plmn_id[i]) &&
             ogs_plmn_id_mnc_from_fqdn(fqdn) ==
-            ogs_plmn_id_mnc(&ogs_local_conf()->serving_plmn_id[i])) {
+            ogs_plmn_id_mnc(&serving_plmn_id[i])) {
             home_network = true;
             break;
         }
