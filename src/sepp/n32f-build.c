@@ -167,6 +167,31 @@ ogs_sbi_request_t *sepp_n32f_build_nrf_request(
     return request;
 }
 
+ogs_sbi_request_t *sepp_n32f_build_amf_request(
+        const char *method, const char *path, const char *body)
+{
+    ogs_sbi_message_t message;
+    ogs_sbi_request_t *request = NULL;
+
+    ogs_assert(method);
+    ogs_assert(path);
+
+    memset(&message, 0, sizeof(message));
+    message.h.method = (char *)method;
+    message.h.uri = (char *)path;
+
+    request = ogs_sbi_build_request(&message);
+    if (!request) {
+        ogs_error("ogs_sbi_build_request() failed");
+        return NULL;
+    }
+
+    /* The UEContextTransfer request body is relayed as it is */
+    set_content(&request->http, body);
+
+    return request;
+}
+
 ogs_sbi_response_t *sepp_n32f_build_response(int status, const char *body)
 {
     ogs_sbi_response_t *response = NULL;

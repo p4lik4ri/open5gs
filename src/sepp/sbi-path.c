@@ -26,6 +26,8 @@ static int response_handler(
 
 static int n32f_forward_response_handler(
         int status, ogs_sbi_response_t *response, void *data);
+static int n32f_amf_discover_response_handler(
+        int status, ogs_sbi_response_t *response, void *data);
 static int n32f_nrf_response_handler(
         int status, ogs_sbi_response_t *response, void *data);
 
@@ -179,6 +181,28 @@ bool sepp_n32f_send_forward_request(
 
     rc = ogs_sbi_client_send_request(
             client, n32f_forward_response_handler, request, assoc);
+    ogs_expect(rc == true);
+
+    return rc;
+}
+
+bool sepp_n32f_send_amf_discover_request(
+        sepp_assoc_t *assoc, ogs_sbi_request_t *request)
+{
+    bool rc;
+    ogs_sbi_client_t *client = NULL;
+
+    ogs_assert(assoc);
+    ogs_assert(request);
+
+    client = NF_INSTANCE_CLIENT(ogs_sbi_self()->nrf_instance);
+    if (!client) {
+        ogs_error("No NRF Client");
+        return false;
+    }
+
+    rc = ogs_sbi_client_send_request(
+            client, n32f_amf_discover_response_handler, request, assoc);
     ogs_expect(rc == true);
 
     return rc;
@@ -641,6 +665,116 @@ error:
             ogs_sbi_server_send_error(stream,
                 OGS_SBI_HTTP_STATUS_INTERNAL_SERVER_ERROR, NULL,
                 "N32-f NRF request failed", NULL, NULL));
+    return OGS_ERROR;
+}
+
+/*
+ * Local NRF's response to the AMF discovery of the forwarded UEContextTransfer.
+ * Send the parked request to the discovered AMF; its response is wrapped
+ * by n32f_nrf_response_handler() and sent back to the peer SEPP.
+ */
+static int n32f_amf_discover_response_handler(
+        int status, ogs_sbi_response_t *response, void *data)
+{
+    sepp_assoc_t *assoc = data;
+    ogs_sbi_stream_t *stream = NULL;
+    ogs_sbi_message_t message;
+    ogs_sbi_client_t *amf_client = NULL;
+    ogs_sbi_request_t *amf_request = NULL;
+    ogs_sbi_response_t *forward = NULL;
+    OpenAPI_lnode_t *node = NULL;
+
+    ogs_assert(assoc);
+
+    stream = ogs_sbi_stream_find_by_id(assoc->stream_id);
+    if (!stream)
+        ogs_error("STREAM has already been removed [%d]", assoc->stream_id);
+
+    if (status != OGS_OK) {
+        ogs_log_message(
+                status == OGS_DONE ? OGS_LOG_DEBUG : OGS_LOG_WARN, 0,
+                "n32f_amf_discover_response_handler() failed [%d]", status);
+        goto error;
+    }
+
+    ogs_assert(response);
+
+    memset(&message, 0, sizeof(message));
+    if (ogs_sbi_parse_response(&message, response) != OGS_OK)
+        ogs_error("cannot parse HTTP response");
+
+    if (message.res_status == OGS_SBI_HTTP_STATUS_OK &&
+        message.SearchResult && message.SearchResult->validity_period &&
+        message.SearchResult->nf_instances) {
+
+        ogs_nnrf_disc_handle_nf_discover_search_result(message.SearchResult);
+
+        OpenAPI_list_for_each(message.SearchResult->nf_instances, node) {
+            OpenAPI_nf_profile_t *NFProfile = node->data;
+            ogs_sbi_nf_instance_t *nf_instance = NULL;
+
+            if (!NFProfile || !NFProfile->nf_instance_id)
+                continue;
+
+            nf_instance = ogs_sbi_nf_instance_find(NFProfile->nf_instance_id);
+            if (!nf_instance)
+                continue;
+
+            amf_client = ogs_sbi_client_find_by_service_name(nf_instance,
+                    (char *)OpenAPI_service_name_ToString(
+                        OpenAPI_service_name_namf_comm),
+                    (char *)OGS_SBI_API_V1);
+            if (amf_client)
+                break;
+        }
+    }
+
+    ogs_sbi_message_free(&message);
+    ogs_sbi_response_free(response);
+    response = NULL;
+
+    if (!amf_client) {
+        /* Tell the peer SEPP that the UE context cannot be found */
+        ogs_error("No AMF for the forwarded UEContextTransfer");
+        forward = sepp_n32f_build_forward_response(
+                OGS_SBI_HTTP_STATUS_NOT_FOUND, NULL);
+        if (!forward)
+            goto error;
+
+        sepp_assoc_remove(assoc);
+        if (stream)
+            ogs_expect(true == ogs_sbi_server_send_response(stream, forward));
+        else
+            ogs_sbi_response_free(forward);
+
+        return OGS_ERROR;
+    }
+
+    amf_request = assoc->request;
+    assoc->request = NULL;
+    ogs_assert(amf_request);
+
+    if (ogs_sbi_client_send_request(
+            amf_client, n32f_nrf_response_handler, amf_request, assoc)
+                == false) {
+        ogs_error("ogs_sbi_client_send_request() failed");
+        ogs_sbi_request_free(amf_request);
+        goto error;
+    }
+
+    ogs_sbi_request_free(amf_request);
+
+    return OGS_OK;
+
+error:
+    if (response)
+        ogs_sbi_response_free(response);
+    sepp_assoc_remove(assoc);
+    if (stream)
+        ogs_assert(true ==
+            ogs_sbi_server_send_error(stream,
+                OGS_SBI_HTTP_STATUS_INTERNAL_SERVER_ERROR, NULL,
+                "N32-f AMF discovery failed", NULL, NULL));
     return OGS_ERROR;
 }
 

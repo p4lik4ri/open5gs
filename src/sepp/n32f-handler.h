@@ -44,7 +44,15 @@ bool sepp_n32f_parse_forward_response(
 sepp_node_t *sepp_n32f_find_peer_by_guami(
         ogs_sbi_discovery_option_t *discovery_option);
 
+bool sepp_n32f_is_ue_context_transfer(const char *method, const char *path);
+bool sepp_n32f_is_forward_allowed(const char *method, const char *path);
+bool sepp_n32f_parse_ue_context_id(const char *path, ogs_guami_t *guami);
+sepp_node_t *sepp_n32f_find_peer_by_ue_context_id(const char *path);
+
 void sepp_n32f_handle_nf_discover(
+        ogs_pool_id_t stream_id, ogs_sbi_stream_t *stream,
+        ogs_sbi_message_t *recvmsg, ogs_sbi_request_t *request);
+void sepp_n32f_handle_ue_context_transfer(
         ogs_pool_id_t stream_id, ogs_sbi_stream_t *stream,
         ogs_sbi_message_t *recvmsg, ogs_sbi_request_t *request);
 void sepp_n32f_handle_forward(

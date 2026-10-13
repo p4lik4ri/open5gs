@@ -568,6 +568,9 @@ void sepp_assoc_remove(sepp_assoc_t *assoc)
     if (assoc->client)
         ogs_sbi_client_remove(assoc->client);
 
+    if (assoc->request)
+        ogs_sbi_request_free(assoc->request);
+
     ogs_pool_free(&sepp_assoc_pool, assoc);
 }
 
