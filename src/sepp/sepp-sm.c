@@ -179,6 +179,49 @@ void sepp_state_operational(ogs_fsm_t *s, sepp_event_t *e)
             END
             break;
 
+        case OpenAPI_service_name_namf_comm:
+            /*
+             * Minimal N32-f subset : UEContextTransfer requested by the
+             * local AMF for a UE of a peer PLMN is forwarded to the
+             * peer SEPP.
+             */
+            if (server->interface) {
+                ogs_error("[DROP] Peer SEPP is using the wrong interface[%s]",
+                        server->interface);
+                break;
+            }
+
+            SWITCH(message.h.resource.component[0])
+            CASE(OGS_SBI_RESOURCE_NAME_UE_CONTEXTS)
+                SWITCH(message.h.resource.component[2])
+                CASE(OGS_SBI_RESOURCE_NAME_TRANSFER)
+                    sepp_n32f_handle_ue_context_transfer(
+                            stream_id, stream, &message, request);
+                    break;
+
+                DEFAULT
+                    ogs_error("Invalid resource name [%s]",
+                            message.h.resource.component[2] ?
+                            message.h.resource.component[2] : "NULL");
+                    ogs_assert(true ==
+                        ogs_sbi_server_send_error(stream,
+                            OGS_SBI_HTTP_STATUS_FORBIDDEN, &message,
+                            "Invalid resource name",
+                            message.h.resource.component[2], NULL));
+                END
+                break;
+
+            DEFAULT
+                ogs_error("Invalid resource name [%s]",
+                        message.h.resource.component[0]);
+                ogs_assert(true ==
+                    ogs_sbi_server_send_error(stream,
+                        OGS_SBI_HTTP_STATUS_BAD_REQUEST, &message,
+                        "Invalid resource name",
+                        message.h.resource.component[0], NULL));
+            END
+            break;
+
         case OGS_SBI_SERVICE_NAME_ID_N32F_FORWARD:
             if (!server->interface &&
                 (ogs_sbi_server_first_by_interface(

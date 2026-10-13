@@ -38,6 +38,8 @@ void sepp_n32c_handshake_send_security_capability_response(
 bool sepp_n32f_send_forward_request(
         sepp_node_t *sepp_node, sepp_assoc_t *assoc,
         ogs_sbi_request_t *request);
+bool sepp_n32f_send_amf_discover_request(
+        sepp_assoc_t *assoc, ogs_sbi_request_t *request);
 bool sepp_n32f_send_nrf_request(
         sepp_assoc_t *assoc, ogs_sbi_request_t *request);
 

@@ -651,6 +651,62 @@ int ogs_sbi_discover_only(ogs_sbi_xact_t *xact)
     return OGS_NOTFOUND;
 }
 
+/*
+ * Minimal N32-f subset (lab only, see src/sepp/n32f-handler.c) :
+ * Namf_Communication_UEContextTransfer towards an AMF of another PLMN
+ * is sent to the local SEPP (sbi.client.sepp) instead of the unreachable
+ * peer AMF. The PLMN is taken from the GUAMI of the discovery option.
+ * Without 'sbi.client.sepp' or for the same PLMN, nothing changes.
+ */
+static bool ue_context_transfer_via_sepp(ogs_sbi_xact_t *xact)
+{
+    ogs_sbi_request_t *request = NULL;
+    ogs_sbi_discovery_option_t *discovery_option = NULL;
+
+    ogs_assert(xact);
+    request = xact->request;
+    discovery_option = xact->discovery_option;
+
+    if (!ogs_sbi_self()->sepp_n32f_client)
+        return false;
+
+    if (!request || !request->h.service.name ||
+        !request->h.resource.component[0] ||
+        !request->h.resource.component[1] ||
+        !request->h.resource.component[2])
+        return false;
+
+    if (strcmp(request->h.service.name,
+            OpenAPI_service_name_ToString(OpenAPI_service_name_namf_comm)) ||
+        strcmp(request->h.resource.component[0],
+            OGS_SBI_RESOURCE_NAME_UE_CONTEXTS) ||
+        strcmp(request->h.resource.component[2],
+            OGS_SBI_RESOURCE_NAME_TRANSFER))
+        return false;
+
+    if (!discovery_option || !discovery_option->guami_presence)
+        return false;
+
+    return ogs_sbi_plmn_id_in_vplmn(&discovery_option->guami.plmn_id);
+}
+
+static bool send_ue_context_transfer_via_sepp(ogs_sbi_xact_t *xact)
+{
+    bool rc;
+
+    ogs_assert(xact);
+
+    ogs_debug("UEContextTransfer via SEPP [PLMN_ID:0x%x]",
+            ogs_plmn_id_hexdump(&xact->discovery_option->guami.plmn_id));
+
+    rc = ogs_sbi_client_send_request(
+            ogs_sbi_self()->sepp_n32f_client, ogs_sbi_client_handler,
+            xact->request, OGS_UINT_TO_POINTER(xact->id));
+    ogs_expect(rc == true);
+
+    return rc;
+}
+
 bool ogs_sbi_send_request_to_nf_instance(
         ogs_sbi_nf_instance_t *nf_instance, ogs_sbi_xact_t *xact)
 {
@@ -662,6 +718,14 @@ bool ogs_sbi_send_request_to_nf_instance(
     ogs_assert(request);
 
     ogs_assert(nf_instance);
+
+    if (ue_context_transfer_via_sepp(xact) == true) {
+        if (send_ue_context_transfer_via_sepp(xact) == false) {
+            ogs_sbi_xact_remove(xact);
+            return false;
+        }
+        return true;
+    }
 
     if (request->h.uri == NULL) {
         client = ogs_sbi_client_find_by_service_name(nf_instance,
@@ -738,6 +802,9 @@ bool ogs_sbi_send_request_with_sepp_discovery(
     ogs_assert(request);
 
     ogs_assert(client);
+
+    if (ue_context_transfer_via_sepp(xact) == true)
+        return send_ue_context_transfer_via_sepp(xact);
 
     if (client->fqdn && ogs_sbi_fqdn_in_vplmn(client->fqdn) == true) {
         ogs_sbi_client_t *sepp_client = NULL, *nrf_client = NULL;
