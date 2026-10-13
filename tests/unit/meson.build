@@ -36,6 +36,7 @@ testunit_unit_sources = files('''
     eir-config-test.c
     ipfw-test.c
     pfcp-rule-test.c
+    sepp-n32f-test.c
 '''.split())
 
 testunit_unit_exe = executable('unit',
@@ -50,7 +51,8 @@ testunit_unit_exe = executable('unit',
                     libipfw_dep,
                     libpfcp_dep,
                     libmme_dep,
-                    libamf_dep])
+                    libamf_dep,
+                    libsepp_dep])
 
 test('unit', testunit_unit_exe, is_parallel : false, suite: 'unit')
 

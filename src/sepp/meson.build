@@ -22,6 +22,8 @@ libsepp_sources = files('''
 
     n32c-build.c
     n32c-handler.c
+    n32f-build.c
+    n32f-handler.c
 
     handshake-sm.c
 

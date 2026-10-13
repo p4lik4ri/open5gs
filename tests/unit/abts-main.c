@@ -48,6 +48,7 @@ abts_suite *test_amf_gnb_id(abts_suite *suite);
 abts_suite *test_eir_config(abts_suite *suite);
 abts_suite *test_ipfw(abts_suite *suite);
 abts_suite *test_pfcp_rule(abts_suite *suite);
+abts_suite *test_sepp_n32f(abts_suite *suite);
 
 const struct testlist {
     abts_suite *(*func)(abts_suite *suite);
@@ -71,6 +72,7 @@ const struct testlist {
     {test_eir_config},
     {test_ipfw},
     {test_pfcp_rule},
+    {test_sepp_n32f},
     {NULL},
 };
 

@@ -18,9 +18,15 @@
  */
 
 #include "sbi-path.h"
+#include "n32f-handler.h"
 
 static int request_handler(ogs_sbi_request_t *request, void *data);
 static int response_handler(
+        int status, ogs_sbi_response_t *response, void *data);
+
+static int n32f_forward_response_handler(
+        int status, ogs_sbi_response_t *response, void *data);
+static int n32f_nrf_response_handler(
         int status, ogs_sbi_response_t *response, void *data);
 
 static void copy_request(
@@ -150,6 +156,64 @@ void sepp_n32c_handshake_send_security_capability_response(
     OpenAPI_list_free(SecNegotiateRspData.plmn_id_list);
     if (SecNegotiateRspData.supported_features)
         ogs_free(SecNegotiateRspData.supported_features);
+}
+
+bool sepp_n32f_send_forward_request(
+        sepp_node_t *sepp_node, sepp_assoc_t *assoc,
+        ogs_sbi_request_t *request)
+{
+    bool rc;
+    ogs_sbi_client_t *client = NULL;
+
+    ogs_assert(sepp_node);
+    ogs_assert(assoc);
+    ogs_assert(request);
+
+    client = NF_INSTANCE_CLIENT(&sepp_node->n32f);
+    if (!client)
+        client = NF_INSTANCE_CLIENT(sepp_node);
+    if (!client) {
+        ogs_error("[%s] No Client", sepp_node->receiver);
+        return false;
+    }
+
+    rc = ogs_sbi_client_send_request(
+            client, n32f_forward_response_handler, request, assoc);
+    ogs_expect(rc == true);
+
+    return rc;
+}
+
+bool sepp_n32f_send_nrf_request(
+        sepp_assoc_t *assoc, ogs_sbi_request_t *request)
+{
+    bool rc;
+    ogs_sbi_client_t *client = NULL;
+    char *apiroot = NULL, *newuri = NULL;
+
+    ogs_assert(assoc);
+    ogs_assert(request);
+
+    client = NF_INSTANCE_CLIENT(ogs_sbi_self()->nrf_instance);
+    if (!client) {
+        ogs_error("No NRF Client");
+        return false;
+    }
+
+    /* The client requires the full URI, not only the path */
+    apiroot = ogs_sbi_client_apiroot(client);
+    ogs_assert(apiroot);
+    newuri = ogs_msprintf("%s%s", apiroot, request->h.uri);
+    ogs_assert(newuri);
+    ogs_free(apiroot);
+    ogs_free(request->h.uri);
+    request->h.uri = newuri;
+
+    rc = ogs_sbi_client_send_request(
+            client, n32f_nrf_response_handler, request, assoc);
+    ogs_expect(rc == true);
+
+    return rc;
 }
 
 static int request_handler(ogs_sbi_request_t *request, void *data)
@@ -390,8 +454,11 @@ static int request_handler(ogs_sbi_request_t *request, void *data)
     ogs_assert(request);
     ogs_assert(data);
 
+    /* N32-f forward from the peer SEPP is handled in the SEPP FSM */
     if (server->interface &&
-        strcmp(server->interface, OGS_SBI_INTERFACE_NAME_N32F) == 0) {
+        strcmp(server->interface, OGS_SBI_INTERFACE_NAME_N32F) == 0 &&
+        strncmp(request->h.uri, "/" OGS_SBI_SERVICE_NAME_N32F_FORWARD "/",
+            strlen(OGS_SBI_SERVICE_NAME_N32F_FORWARD) + 2) != 0) {
         ogs_error("[DROP] Peer SEPP is using the wrong interface[%s]",
                 server->interface);
         return OGS_ERROR;
@@ -458,6 +525,123 @@ static int response_handler(
     ogs_expect(true == ogs_sbi_server_send_response(stream, response));
 
     return OGS_OK;
+}
+
+/*
+ * Peer SEPP's response to the forwarded NF-discovery request.
+ * Unwrap the N32-f response and relay it to the original caller.
+ */
+static int n32f_forward_response_handler(
+        int status, ogs_sbi_response_t *response, void *data)
+{
+    sepp_assoc_t *assoc = data;
+    ogs_sbi_stream_t *stream = NULL;
+    ogs_sbi_response_t *nrf_response = NULL;
+    int nrf_status = 0;
+    char *body = NULL;
+
+    ogs_assert(assoc);
+
+    stream = ogs_sbi_stream_find_by_id(assoc->stream_id);
+    if (!stream)
+        ogs_error("STREAM has already been removed [%d]", assoc->stream_id);
+
+    if (status != OGS_OK) {
+        ogs_log_message(
+                status == OGS_DONE ? OGS_LOG_DEBUG : OGS_LOG_WARN, 0,
+                "n32f_forward_response_handler() failed [%d]", status);
+        goto error;
+    }
+
+    ogs_assert(response);
+
+    if (response->status != OGS_SBI_HTTP_STATUS_OK ||
+        sepp_n32f_parse_forward_response(
+            response, &nrf_status, &body) == false) {
+        ogs_error("Invalid N32-f forward response [%d]", response->status);
+        goto error;
+    }
+
+    nrf_response = sepp_n32f_build_response(nrf_status, body);
+    if (body)
+        ogs_free(body);
+    if (!nrf_response)
+        goto error;
+
+    ogs_sbi_response_free(response);
+    sepp_assoc_remove(assoc);
+
+    if (stream)
+        ogs_expect(true == ogs_sbi_server_send_response(stream, nrf_response));
+    else
+        ogs_sbi_response_free(nrf_response);
+
+    return OGS_OK;
+
+error:
+    if (response)
+        ogs_sbi_response_free(response);
+    sepp_assoc_remove(assoc);
+    if (stream)
+        ogs_assert(true ==
+            ogs_sbi_server_send_error(stream,
+                OGS_SBI_HTTP_STATUS_INTERNAL_SERVER_ERROR, NULL,
+                "N32-f forward failed", NULL, NULL));
+    return OGS_ERROR;
+}
+
+/*
+ * Local NRF's response to the forwarded NF-discovery request.
+ * Wrap it in an N32-f response and send it back to the peer SEPP.
+ */
+static int n32f_nrf_response_handler(
+        int status, ogs_sbi_response_t *response, void *data)
+{
+    sepp_assoc_t *assoc = data;
+    ogs_sbi_stream_t *stream = NULL;
+    ogs_sbi_response_t *forward = NULL;
+
+    ogs_assert(assoc);
+
+    stream = ogs_sbi_stream_find_by_id(assoc->stream_id);
+    if (!stream)
+        ogs_error("STREAM has already been removed [%d]", assoc->stream_id);
+
+    if (status != OGS_OK) {
+        ogs_log_message(
+                status == OGS_DONE ? OGS_LOG_DEBUG : OGS_LOG_WARN, 0,
+                "n32f_nrf_response_handler() failed [%d]", status);
+        goto error;
+    }
+
+    ogs_assert(response);
+
+    forward = sepp_n32f_build_forward_response(
+            response->status, response->http.content);
+    ogs_sbi_response_free(response);
+    response = NULL;
+    if (!forward)
+        goto error;
+
+    sepp_assoc_remove(assoc);
+
+    if (stream)
+        ogs_expect(true == ogs_sbi_server_send_response(stream, forward));
+    else
+        ogs_sbi_response_free(forward);
+
+    return OGS_OK;
+
+error:
+    if (response)
+        ogs_sbi_response_free(response);
+    sepp_assoc_remove(assoc);
+    if (stream)
+        ogs_assert(true ==
+            ogs_sbi_server_send_error(stream,
+                OGS_SBI_HTTP_STATUS_INTERNAL_SERVER_ERROR, NULL,
+                "N32-f NRF request failed", NULL, NULL));
+    return OGS_ERROR;
 }
 
 static void copy_request(

@@ -91,6 +91,10 @@ typedef struct sepp_assoc_s {
     OpenAPI_nf_type_e requester_nf_type;
 
     ogs_sbi_nf_instance_t *nf_service_producer;
+
+    /* N32-f forwarding : PLMN served by the peer SEPP */
+    bool target_plmn_id_presence;
+    ogs_plmn_id_t target_plmn_id;
 } sepp_assoc_t;
 
 void sepp_context_init(void);

@@ -149,6 +149,16 @@ amf:
 #        scp:
 #          next: yes  # Delegate to SCP for next-hop communications
 #
+#  o Roaming: NRF discovery of a GUAMI from another PLMN via the local SEPP
+#    (minimal, lab-only N32-f subset; requires the SEPP peers to be configured
+#     for N32 and requires direct NRF communication, not SCP-delegated discovery)
+#  sbi:
+#    client:
+#      nrf:
+#        - uri: http://127.0.0.10:7777
+#      sepp:
+#        - uri: http://127.0.0.250:7777
+#
 #  o Default delegation: all communications are delegated to the SCP
 #  sbi:
 #    client:
